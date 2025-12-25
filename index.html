@@ -1,0 +1,265 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FLAMES - All Fates Animated</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Syncopate:wght@400;700&family=Space+Grotesk:wght@300;700&display=swap');
+
+        * { box-sizing: border-box; }
+
+        body {
+            margin: 0; padding: 0;
+            background: #000; color: #fff;
+            font-family: 'Space Grotesk', sans-serif;
+            display: flex; justify-content: center; align-items: center;
+            height: 100vh; overflow: hidden;
+            transition: background 0.5s ease;
+        }
+
+        #bg-canvas {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            z-index: -1;
+        }
+
+        .glass-card {
+            background: rgba(0, 0, 0, 0.7);
+            backdrop-filter: blur(15px);
+            padding: 35px; border-radius: 30px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            width: 90%; max-width: 400px;
+            text-align: center;
+            box-shadow: 0 0 40px rgba(0,0,0,0.8);
+            z-index: 10;
+        }
+
+        h1 {
+            font-family: 'Syncopate', sans-serif; font-size: 1.8rem;
+            letter-spacing: 8px; margin-bottom: 25px;
+            background: linear-gradient(90deg, #00f2fe, #ff007a);
+            background-clip: text; -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+        }
+
+        .input-wrapper { width: 100%; margin-bottom: 15px; }
+
+        input {
+            width: 100%; padding: 15px;
+            background: rgba(255,255,255,0.05);
+            border: 1px solid rgba(255,255,255,0.2);
+            border-radius: 12px; color: #fff;
+            font-size: 1.2rem; text-align: center;
+            outline: none; text-transform: uppercase;
+            font-family: 'Syncopate', sans-serif;
+            transition: all 0.3s ease;
+        }
+
+        input:focus { border-color: #00f2fe; background: rgba(0, 242, 254, 0.1); }
+        #n2:focus { border-color: #ff007a; background: rgba(255, 0, 122, 0.1); }
+
+        .flames-container { display: flex; justify-content: space-around; margin: 25px 0; }
+        .letter {
+            font-family: 'Syncopate', sans-serif; font-size: 1.4rem; font-weight: bold;
+            color: rgba(255,255,255,0.1); transition: 0.3s;
+        }
+        .letter.active { color: #fff; text-shadow: 0 0 10px #00f2fe; }
+        .letter.eliminated { color: #ff0055 !important; text-decoration: line-through; opacity: 0.1; transform: scale(0.8); }
+        .letter.winner { transform: scale(1.4); z-index: 5; }
+
+        button {
+            width: 100%; padding: 18px; border-radius: 15px; border: none;
+            background: linear-gradient(45deg, #00f2fe, #ff007a);
+            color: #fff; font-weight: bold; font-family: 'Syncopate', sans-serif;
+            cursor: pointer; transition: 0.3s;
+        }
+
+        #result-text { 
+            margin-top: 25px; font-size: 2.2rem; font-weight: bold; min-height: 50px; 
+            text-transform: uppercase; letter-spacing: 2px;
+        }
+
+        .emoji-pop {
+            position: fixed; pointer-events: none; z-index: 100;
+            animation: popUp 1.5s ease-out forwards;
+        }
+        @keyframes popUp {
+            0% { transform: scale(0) translateY(0); opacity: 0; }
+            50% { opacity: 1; }
+            100% { transform: scale(2.5) translateY(-300px); opacity: 0; }
+        }
+
+        /* Shake animation for Enemy */
+        .shake { animation: shakeEffect 0.2s infinite; }
+        @keyframes shakeEffect {
+            0% { transform: translate(1px, 1px); }
+            50% { transform: translate(-2px, -1px); }
+            100% { transform: translate(1px, 1px); }
+        }
+    </style>
+</head>
+<body>
+
+<canvas id="bg-canvas"></canvas>
+
+<div class="glass-card" id="card">
+    <h1>FLAMES</h1>
+    
+    <div class="input-wrapper">
+        <input type="text" id="n1" placeholder="YOUR NAME" oninput="resizeText(this)" autocomplete="off">
+    </div>
+    <div class="input-wrapper">
+        <input type="text" id="n2" placeholder="CRUSH NAME" oninput="resizeText(this)" onfocus="setMood('crush')" onblur="setMood('idle')" autocomplete="off">
+    </div>
+
+    <div class="flames-container">
+        <span class="letter" data-char="F">F</span>
+        <span class="letter" data-char="L">L</span>
+        <span class="letter" data-char="A">A</span>
+        <span class="letter" data-char="M">M</span>
+        <span class="letter" data-char="E">E</span>
+        <span class="letter" data-char="S">S</span>
+    </div>
+
+    <button onclick="calculate()">REVEAL FATE</button>
+
+    <div id="result-text"></div>
+</div>
+
+<script>
+    const canvas = document.getElementById('bg-canvas');
+    const ctx = canvas.getContext('2d');
+    const card = document.getElementById('card');
+    let stars = [];
+    let speed = 0.5;
+    let color = '255, 255, 255';
+    let mood = 'idle';
+
+    function initCanvas() {
+        canvas.width = window.innerWidth;
+        canvas.height = window.innerHeight;
+        stars = [];
+        for(let i=0; i<150; i++) stars.push({ x: Math.random()*canvas.width, y: Math.random()*canvas.height, size: Math.random()*2, v: Math.random()*2 });
+    }
+
+    function draw() {
+        ctx.fillStyle = `rgba(0, 0, 0, ${mood === 'plain' ? '0.8' : '0.2'})`;
+        ctx.fillRect(0,0,canvas.width, canvas.height);
+        
+        ctx.fillStyle = `rgba(${color}, 0.8)`;
+        stars.forEach(s => {
+            ctx.beginPath();
+            ctx.arc(s.x, s.y, s.size, 0, Math.PI*2);
+            ctx.fill();
+            s.y -= s.v * speed;
+            if(s.y < 0) s.y = canvas.height;
+        });
+        requestAnimationFrame(draw);
+    }
+
+    function setMood(m) {
+        mood = m;
+        card.classList.remove('shake');
+        if(m === 'idle') { speed = 0.5; color = '255, 255, 255'; }
+        if(m === 'crush') { speed = 3; color = '255, 0, 122'; }
+        if(m === 'calc') { speed = 15; color = '0, 242, 254'; }
+        
+        // Result States
+        if(m === 'FRIENDS') { speed = 2; color = '0, 255, 150'; }
+        if(m === 'LOVE') { speed = 5; color = '255, 0, 122'; }
+        if(m === 'AFFECTION') { speed = 3; color = '200, 100, 255'; }
+        if(m === 'MARRIAGE') { speed = 8; color = '255, 215, 0'; }
+        if(m === 'ENEMY') { speed = 10; color = '255, 50, 0'; card.classList.add('shake'); }
+        if(m === 'SIBLINGS') { speed = 0.5; color = '100, 100, 100'; }
+    }
+
+    function resizeText(input) {
+        input.style.fontSize = input.value.length > 12 ? '0.8rem' : '1.2rem';
+    }
+
+    async function calculate() {
+        const n1 = document.getElementById('n1').value.toUpperCase().trim();
+        const n2 = document.getElementById('n2').value.toUpperCase().trim();
+        if(!n1 || !n2) return;
+
+        setMood('calc');
+        const resDiv = document.getElementById('result-text');
+        resDiv.innerHTML = "";
+        document.querySelectorAll('.letter').forEach(l => {
+            l.className = 'letter active';
+            l.style.color = "";
+            l.style.textShadow = "";
+        });
+
+        let s1 = n1.replace(/\s/g, '').split('');
+        let s2 = n2.replace(/\s/g, '').split('');
+        s1.forEach((c, i) => { let idx = s2.indexOf(c); if(idx !== -1) { s1[i] = null; s2[idx] = null; }});
+        const count = [...s1, ...s2].filter(c => c !== null).length;
+
+        let options = ['F', 'L', 'A', 'M', 'E', 'S'];
+        let names = { 'F':'FRIENDS', 'L':'LOVE', 'A':'AFFECTION', 'M':'MARRIAGE', 'E':'ENEMY', 'S':'SIBLINGS' };
+        let curr = 0;
+
+        while(options.length > 1) {
+            await new Promise(r => setTimeout(r, 400));
+            curr = (curr + count - 1) % options.length;
+            let rem = options.splice(curr, 1)[0];
+            document.querySelector(`[data-char="${rem}"]`).className = 'letter eliminated';
+        }
+
+        const finalWord = names[options[0]];
+        let shuffle = 0;
+        const itv = setInterval(() => {
+            resDiv.innerHTML = Object.values(names)[Math.floor(Math.random()*6)];
+            shuffle++;
+            if(shuffle > 10) {
+                clearInterval(itv);
+                finish(options[0], finalWord);
+            }
+        }, 80);
+    }
+
+    function finish(letterKey, word) {
+        const resDiv = document.getElementById('result-text');
+        const winEl = document.querySelector(`[data-char="${letterKey}"]`);
+        resDiv.innerHTML = word;
+        winEl.className = 'letter winner';
+        setMood(word);
+
+        const config = {
+            'FRIENDS': { color: '#00ff96', emoji: '🤝' },
+            'LOVE': { color: '#ff007a', emoji: '❤️' },
+            'AFFECTION': { color: '#c864ff', emoji: '✨' },
+            'MARRIAGE': { color: '#ffd700', emoji: '💍' },
+            'ENEMY': { color: '#ff3200', emoji: '💀' },
+            'SIBLINGS': { color: '#888888', emoji: '🏠' }
+        };
+
+        const theme = config[word];
+        resDiv.style.color = theme.color;
+        winEl.style.color = theme.color;
+        winEl.style.textShadow = `0 0 20px ${theme.color}`;
+        
+        triggerEmoji(theme.emoji);
+    }
+
+    function triggerEmoji(em) {
+        for(let i=0; i<40; i++) {
+            setTimeout(() => {
+                const e = document.createElement('div');
+                e.className = 'emoji-pop';
+                e.innerHTML = em;
+                e.style.left = Math.random()*100+'vw';
+                e.style.top = '80vh';
+                e.style.fontSize = (Math.random() * 20 + 20) + 'px';
+                document.body.appendChild(e);
+                setTimeout(() => e.remove(), 1500);
+            }, i*50);
+        }
+    }
+
+    window.addEventListener('resize', initCanvas);
+    initCanvas();
+    draw();
+</script>
+</body>
+</html>
